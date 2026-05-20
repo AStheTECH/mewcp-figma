@@ -31,11 +31,9 @@ def register_tools(mcp: FastMCP) -> None:
         name="get_me",
         description="Return the authenticated Figma user's profile information.",
     )
-    def get_me(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
-    ) -> str:
+    def get_me() -> str:
         try:
-            result = service.get_me(access_token)
+            result = service.get_me()
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_me: {e}")
@@ -50,12 +48,11 @@ def register_tools(mcp: FastMCP) -> None:
         description="Retrieve a Figma file document tree by its file key.",
     )
     def get_file(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file (found in the file URL)"),
         depth: Optional[int] = Field(None, description="Depth of the node tree to return (default: full tree)"),
     ) -> str:
         try:
-            result = service.get_file(access_token, file_key, depth)
+            result = service.get_file(file_key, depth)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_file for '{file_key}': {e}")
@@ -66,13 +63,12 @@ def register_tools(mcp: FastMCP) -> None:
         description="Retrieve specific nodes from a Figma file by their IDs.",
     )
     def get_file_nodes(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
         node_ids: str = Field(..., description="Comma-separated list of node IDs to retrieve (e.g. '1:2,3:4')"),
         depth: Optional[int] = Field(None, description="Depth of the node subtree to return"),
     ) -> str:
         try:
-            result = service.get_file_nodes(access_token, file_key, node_ids, depth)
+            result = service.get_file_nodes(file_key, node_ids, depth)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_file_nodes for file '{file_key}', nodes '{node_ids}': {e}")
@@ -83,11 +79,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="List all local components defined in a Figma file.",
     )
     def get_file_components(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
     ) -> str:
         try:
-            result = service.get_file_components(access_token, file_key)
+            result = service.get_file_components(file_key)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_file_components for '{file_key}': {e}")
@@ -98,11 +93,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="List all local styles (colors, text, effects, grids) defined in a Figma file.",
     )
     def get_file_styles(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
     ) -> str:
         try:
-            result = service.get_file_styles(access_token, file_key)
+            result = service.get_file_styles(file_key)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_file_styles for '{file_key}': {e}")
@@ -113,11 +107,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="Retrieve the version history of a Figma file.",
     )
     def get_file_versions(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
     ) -> str:
         try:
-            result = service.get_file_versions(access_token, file_key)
+            result = service.get_file_versions(file_key)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_file_versions for '{file_key}': {e}")
@@ -132,14 +125,13 @@ def register_tools(mcp: FastMCP) -> None:
         description="Export one or more nodes from a Figma file as rendered image URLs.",
     )
     def get_images(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
         node_ids: str = Field(..., description="Comma-separated list of node IDs to export (e.g. '1:2,3:4')"),
         scale: Optional[float] = Field(None, description="Export scale factor between 0.01 and 4 (default: 1)"),
         format: Optional[str] = Field(None, description="Image format: 'jpg', 'png', 'svg', or 'pdf' (default: 'png')"),
     ) -> str:
         try:
-            result = service.get_images(access_token, file_key, node_ids, scale, format)
+            result = service.get_images(file_key, node_ids, scale, format)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_images for file '{file_key}', nodes '{node_ids}': {e}")
@@ -150,11 +142,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="Retrieve download URLs for all images embedded in a Figma file as fills.",
     )
     def get_image_fills(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
     ) -> str:
         try:
-            result = service.get_image_fills(access_token, file_key)
+            result = service.get_image_fills(file_key)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_image_fills for '{file_key}': {e}")
@@ -169,11 +160,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="List all comments on a Figma file.",
     )
     def get_comments(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
     ) -> str:
         try:
-            result = service.get_comments(access_token, file_key)
+            result = service.get_comments(file_key)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_comments for '{file_key}': {e}")
@@ -184,12 +174,11 @@ def register_tools(mcp: FastMCP) -> None:
         description="Post a new comment on a Figma file.",
     )
     def post_comment(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         file_key: str = Field(..., description="The unique key identifying the Figma file"),
         message: str = Field(..., description="The comment text to post"),
     ) -> str:
         try:
-            result = service.post_comment(access_token, file_key, message)
+            result = service.post_comment(file_key, message)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed post_comment for '{file_key}': {e}")
@@ -204,11 +193,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="List all projects belonging to a Figma team.",
     )
     def get_team_projects(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         team_id: str = Field(..., description="The Figma team ID"),
     ) -> str:
         try:
-            result = service.get_team_projects(access_token, team_id)
+            result = service.get_team_projects(team_id)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_team_projects for team '{team_id}': {e}")
@@ -219,11 +207,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="List all files within a Figma project.",
     )
     def get_project_files(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         project_id: str = Field(..., description="The Figma project ID"),
     ) -> str:
         try:
-            result = service.get_project_files(access_token, project_id)
+            result = service.get_project_files(project_id)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_project_files for project '{project_id}': {e}")
@@ -238,11 +225,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="List all published components in a Figma team library.",
     )
     def get_team_components(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         team_id: str = Field(..., description="The Figma team ID"),
     ) -> str:
         try:
-            result = service.get_team_components(access_token, team_id)
+            result = service.get_team_components(team_id)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_team_components for team '{team_id}': {e}")
@@ -253,11 +239,10 @@ def register_tools(mcp: FastMCP) -> None:
         description="Retrieve metadata for a specific published Figma component by its key.",
     )
     def get_component(
-        access_token: str = Field(..., description="Figma personal access token or OAuth2 bearer token"),
         component_key: str = Field(..., description="The unique key of the published component"),
     ) -> str:
         try:
-            result = service.get_component(access_token, component_key)
+            result = service.get_component(component_key)
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_component for '{component_key}': {e}")

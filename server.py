@@ -4,6 +4,7 @@
 import logging
 
 from fastmcp import FastMCP
+from fastmcp_credentials import CredentialMiddleware, HeaderCredentialBackend
 
 from figma_mcp.cli import parse_args
 from figma_mcp.config import configure_logging
@@ -12,7 +13,11 @@ from figma_mcp.tools import register_tools
 configure_logging()
 logger = logging.getLogger("figma-mcp-server")
 
-mcp = FastMCP("CL Figma MCP Server")
+backend = HeaderCredentialBackend()
+mcp = FastMCP(
+    "CL Figma MCP Server",
+    middleware=[CredentialMiddleware(backend, "oauth")],
+)
 register_tools(mcp)
 
 # Expose ASGI app for hosting platform's (e.g. Vercel) Python runtime.
