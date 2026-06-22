@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -246,4 +246,104 @@ def register_tools(mcp: FastMCP) -> None:
             return json.dumps(result)
         except Exception as e:
             logger.error(f"Failed get_component for '{component_key}': {e}")
+            return json.dumps({"error": str(e)})
+
+    # ------------------------------------------------------------------ #
+    # Intelligent design data (simplified for LLM consumption)            #
+    # ------------------------------------------------------------------ #
+
+    @mcp.tool(
+        name="get_figma_data",
+        description=(
+            "Fetch a Figma file or specific node and return a simplified, "
+            "LLM-friendly representation. Unlike get_file / get_file_nodes, "
+            "this tool runs the raw API response through a simplification "
+            "pipeline: invisible nodes are filtered, layout/text/fill/stroke/"
+            "effect properties are extracted and deduplicated into shared "
+            "globalVars references, and pure-vector containers are collapsed "
+            "to IMAGE-SVG. Use this tool when you want to understand the "
+            "design structure rather than the raw Figma document."
+        ),
+    )
+    def get_figma_data(
+        file_key: str = Field(
+            ...,
+            description="The key of the Figma file to fetch, found in the URL: "
+                        "figma.com/(file|design)/<fileKey>/...",
+        ),
+        node_id: Optional[str] = Field(
+            None,
+            description="Optional node ID to fetch a specific frame/component "
+                        "(format: '1234:5678'). When omitted, the full file is fetched.",
+        ),
+        depth: Optional[int] = Field(
+            None,
+            description="OPTIONAL. Do NOT use unless explicitly requested. "
+                        "Controls how many levels deep to traverse the node tree.",
+        ),
+    ) -> str:
+        try:
+            result = service.get_figma_data(file_key, node_id, depth)
+            return json.dumps(result)
+        except Exception as e:
+            logger.error(f"Failed get_figma_data for '{file_key}': {e}")
+            return json.dumps({"error": str(e)})
+
+    # ------------------------------------------------------------------ #
+    # Image download (saves to server-local filesystem)                   #
+    # ------------------------------------------------------------------ #
+
+    @mcp.tool(
+        name="download_figma_images",
+        description=(
+            "Download SVG and PNG images from a Figma file and save them to a "
+            "local directory on the server filesystem. Supports three image "
+            "sources: (1) rendered PNG/SVG exports via node ID, "
+            "(2) IMAGE fill downloads via imageRef, "
+            "(3) animated GIF downloads via gifRef. "
+            "Returns the absolute save path and per-file download status."
+        ),
+    )
+    def download_figma_images_tool(
+        file_key: str = Field(
+            ...,
+            description="The key of the Figma file containing the images.",
+        ),
+        nodes: list[dict[str, Any]] = Field(
+            ...,
+            description=(
+                "List of image node descriptors. Each object must have:\n"
+                "  nodeId (str)          — Figma node ID, e.g. '1234:5678'\n"
+                "  fileName (str)        — output filename with extension: "
+                                          ".png, .svg, or .gif\n"
+                "Optional per node:\n"
+                "  imageRef (str)        — imageRef from an IMAGE fill (PNG)\n"
+                "  gifRef (str)          — gifRef from an animated GIF fill\n"
+                "  filenameSuffix (str)  — suffix appended before extension for uniqueness"
+            ),
+        ),
+        local_path: str = Field(
+            ...,
+            description=(
+                "Directory to save images into. Relative paths are resolved "
+                "against the server's working directory. The directory is "
+                "created if it does not exist."
+            ),
+        ),
+        png_scale: Optional[float] = Field(
+            2.0,
+            description="Export scale for PNG renders (default 2 for @2x). "
+                        "Does not affect SVG or imageRef downloads.",
+        ),
+    ) -> str:
+        try:
+            result = service.download_figma_images(
+                file_key=file_key,
+                nodes=nodes,
+                local_path=local_path,
+                png_scale=png_scale or 2.0,
+            )
+            return json.dumps(result)
+        except Exception as e:
+            logger.error(f"Failed download_figma_images for '{file_key}': {e}")
             return json.dumps({"error": str(e)})
