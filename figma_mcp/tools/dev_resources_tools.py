@@ -38,7 +38,6 @@ _DEV_MODE_NOTE = (
 )
 
 _CREATE_KEYS = ("name", "url", "file_key", "node_id")
-_UPDATE_KEYS = {"id", "name", "url"}
 
 
 def _is_text(value: Any) -> bool:
@@ -164,9 +163,9 @@ def register_dev_resources_tools(mcp: FastMCP) -> None:
         dev_resources: list[dict[str, Any]] = Field(
             description=(
                 "Dev resources to update. Each item is an object with key id (str, the dev "
-                "resource's id from `list_dev_resources` or `create_dev_resources`) and at least "
-                "one of name (str, new name) and url (str, new link). Other keys such as "
-                "file_key or node_id are rejected: the file and node cannot be changed."
+                "resource's id from `list_dev_resources` or `create_dev_resources`) and optional "
+                "keys name (str, new name) and url (str, new link). The file and node cannot be "
+                "changed."
             )
         ),
     ) -> UpdateDevResourcesResult:
@@ -182,15 +181,6 @@ def register_dev_resources_tools(mcp: FastMCP) -> None:
             if not _is_text(item.get("id")):
                 return _err(UpdateDevResourcesResult, tlog, "VALIDATION_ERROR",
                             f"dev_resources[{i}].id must be a non-empty string", 400)
-            extra = sorted(set(item) - _UPDATE_KEYS)
-            if extra:
-                return _err(UpdateDevResourcesResult, tlog, "VALIDATION_ERROR",
-                            f"dev_resources[{i}] has unsupported key(s): {', '.join(extra)}. "
-                            "Only id, name and url are accepted; the file and node cannot be "
-                            "changed", 400)
-            if "name" not in item and "url" not in item:
-                return _err(UpdateDevResourcesResult, tlog, "VALIDATION_ERROR",
-                            f"dev_resources[{i}] must set name and/or url", 400)
             for key in ("name", "url"):
                 if key in item and not _is_text(item[key]):
                     return _err(UpdateDevResourcesResult, tlog, "VALIDATION_ERROR",
