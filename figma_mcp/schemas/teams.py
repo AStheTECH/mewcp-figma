@@ -68,7 +68,7 @@ class InviteTeamMembersData(BaseModel):
     errors: list[TeamInviteError] = Field(
         default_factory=list,
         description="Addresses that could not be invited; the other addresses were still processed. "
-                    "Always check this — it can be non-empty on a successful call.")
+                    "It can be non-empty even when the call succeeds.")
 
 
 class InviteTeamMembersResult(ToolResult):
