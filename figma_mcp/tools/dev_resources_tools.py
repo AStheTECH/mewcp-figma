@@ -56,7 +56,7 @@ def register_dev_resources_tools(mcp: FastMCP) -> None:
             "\"File not found\" on a file that exists most likely means dev resources aren't "
             "available for that file's plan or the user's seat."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True),
     )
     def list_dev_resources(
         file_key: str = Field(
@@ -96,7 +96,7 @@ def register_dev_resources_tools(mcp: FastMCP) -> None:
             "or more files in a single call; they are available immediately, with no publishing "
             "step. Returns the created resources in `links_created` and any that failed in "
             "`errors` (with `file_key` / `node_id` possibly null). The call can succeed with a "
-            "200 while some or all items fail, so always check `errors`: failures include a "
+            "200 while some or all items fail, so `errors` can be non-empty on success; failures include a "
             "file_key that can't be found, a node that already has the maximum of 10 dev "
             "resources, and a node that already has a dev resource with the same url. "
             + _DEV_MODE_NOTE
@@ -154,8 +154,8 @@ def register_dev_resources_tools(mcp: FastMCP) -> None:
             "You MUST stop, tell the user exactly how many dev resources will be affected and "
             "what will change, and wait for their explicit written confirmation before "
             "proceeding. Returns the updated resources in `links_updated` and any that failed in "
-            "`errors`; the call can succeed with a 200 while some or all items fail, so always "
-            "check `errors`. " + _DEV_MODE_NOTE
+            "`errors`; the call can succeed with a 200 while some or all items fail, so `errors` "
+            "can be non-empty on success. " + _DEV_MODE_NOTE
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=True),
     )
