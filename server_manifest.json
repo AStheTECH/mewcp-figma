@@ -1,0 +1,2078 @@
+{
+  "manifest_version": 1,
+  "server": {
+    "name": "mewcp-figma",
+    "package": "figma_mcp",
+    "auth": "oauth",
+    "version": "v1.0.0",
+    "api_base": "https://api.figma.com"
+  },
+  "tools": {
+    "groups": {
+      "comments": {
+        "file": "comments_tools.py",
+        "doc_source": "comments/",
+        "register_fn": "register_comments_tools",
+        "tools": {
+          "list_comments": {
+            "doc_file": "comments/list_comments.md",
+            "endpoint": "GET /v1/files/{file_key}/comments",
+            "description": "Gets the list of comments left on a file and returns them.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to get comments from (path). This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "as_md",
+                "type": "bool",
+                "required": false,
+                "description": "Query param. If enabled, will return comments as their markdown equivalents when applicable."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "comments",
+                "type": "list[dict] (Comment: id: str, client_meta: dict (one of Vector {x, y} | FrameOffset {node_id, node_offset {x, y}} | Region {x, y, region_height, region_width, comment_pin_corner} | FrameOffsetRegion {node_id, node_offset {x, y}, region_height, region_width, comment_pin_corner}), file_key: str, parent_id: str (optional), user: dict {id, handle, img_url}, created_at: str (date-time), resolved_at: str | None (date-time), message: str, order_id: str | None, reactions: list[dict] {user {id, handle, img_url}, emoji: str, created_at: str})"
+              }
+            ],
+            "schema": {
+              "data": "CommentListData",
+              "result": "CommentListResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_comments:read. Docs call the path param `key` and list `as_md` as a path param; spec (used) makes it `file_key` + query `as_md`. Docs vs spec: spec returns `message` (docs omit it) and types `order_id` as string|null (docs say Number) \u2014 spec used. Live check: `order_id` is a string, `resolved_at` null, `parent_id` is \"\" (empty string, not absent) on root comments \u2014 treat as reply only when non-empty; extra fields `uuid`, `client_meta.stable_path`, top-level `i18n` appear \u2014 output schemas must allow extra fields. Errors: 403 invalid/expired token, 404 file not found."
+          },
+          "create_comment": {
+            "doc_file": "comments/create_comment.md",
+            "endpoint": "POST /v1/files/{file_key}/comments",
+            "description": "Posts a new comment (or a reply to a root comment) on a file and returns the created comment.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to add comments in (path). This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "message",
+                "type": "str",
+                "required": true,
+                "description": "Body. The text contents of the comment to post."
+              },
+              {
+                "name": "comment_id",
+                "type": "str",
+                "required": false,
+                "description": "Body. The ID of the comment to reply to, if any. This must be a root comment. You cannot reply to other replies (a comment that has a parent_id)."
+              },
+              {
+                "name": "client_meta",
+                "type": "dict",
+                "required": false,
+                "description": "Body. The position where to place the comment. One of: Vector {x, y} (absolute canvas coordinates); FrameOffset {node_id, node_offset: {x, y}} (relative to a frame, offset from its top-left corner); Region {x, y, region_height, region_width, comment_pin_corner}; FrameOffsetRegion {node_id, node_offset: {x, y}, region_height, region_width, comment_pin_corner}. region_height/region_width must be > 0; comment_pin_corner is one of top-left, top-right, bottom-left, bottom-right (default bottom-right)."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "id",
+                "type": "str"
+              },
+              {
+                "name": "client_meta",
+                "type": "dict (one of Vector {x, y} | FrameOffset {node_id, node_offset {x, y}} | Region {x, y, region_height, region_width, comment_pin_corner} | FrameOffsetRegion {node_id, node_offset {x, y}, region_height, region_width, comment_pin_corner})"
+              },
+              {
+                "name": "file_key",
+                "type": "str"
+              },
+              {
+                "name": "parent_id",
+                "type": "str | None"
+              },
+              {
+                "name": "user",
+                "type": "dict {id: str, handle: str, img_url: str}"
+              },
+              {
+                "name": "created_at",
+                "type": "str (date-time)"
+              },
+              {
+                "name": "resolved_at",
+                "type": "str | None (date-time)"
+              },
+              {
+                "name": "message",
+                "type": "str"
+              },
+              {
+                "name": "order_id",
+                "type": "str | None"
+              },
+              {
+                "name": "reactions",
+                "type": "list[dict] {user: dict {id, handle, img_url}, emoji: str, created_at: str (date-time)}"
+              }
+            ],
+            "schema": {
+              "data": "CreateCommentData",
+              "result": "CreateCommentResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_comments:write. Returns the posted Comment (same shape as a list_comments item). `comment_id` must be a root comment. Docs vs spec on Comment fields as in list_comments (spec used). Live check: `parent_id` returned as \"\" on root comments, `order_id` string, `resolved_at` null; extra `uuid`, `client_meta.stable_path`, `i18n` fields \u2014 allow extras. FrameOffset client_meta accepted live. Errors: 400 (spec), 403 invalid/expired token, 404 file not found."
+          },
+          "delete_comment": {
+            "doc_file": "comments/delete_comment.md",
+            "endpoint": "DELETE /v1/files/{file_key}/comments/{comment_id}",
+            "description": "Deletes a specific comment from a file (only the person who made the comment can delete it) and returns a status acknowledgement.",
+            "tier": "DELETE",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to delete comment from (path). This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "comment_id",
+                "type": "str",
+                "required": true,
+                "description": "Path. Comment id of comment to delete."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int (always 200)"
+              },
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              }
+            ],
+            "schema": {
+              "data": "DeleteCommentData",
+              "result": "DeleteCommentResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_comments:write. Only the comment's author can delete it (compare comments[].user.id with get_current_user id). Docs say nothing is returned; spec and live call return {status: 200, error: false} (live also had `i18n: null`) \u2014 treat any 200 as success and allow extra fields. Errors: 403 invalid/expired token, 404 file not found."
+          },
+          "list_comment_reactions": {
+            "doc_file": "comments/list_comment_reactions.md",
+            "endpoint": "GET /v1/files/{file_key}/comments/{comment_id}/reactions",
+            "description": "Gets a paginated list of reactions left on a comment and returns them.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to get comment containing reactions from (path). This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "comment_id",
+                "type": "str",
+                "required": true,
+                "description": "Path. ID of comment to get reactions from."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Query param. Cursor for pagination, retrieved from the response of the previous call."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "reactions",
+                "type": "list[dict] {user: dict {id, handle, img_url}, emoji: str, created_at: str (date-time)}"
+              },
+              {
+                "name": "pagination",
+                "type": "dict {prev_page: str (optional), next_page: str (optional)}"
+              }
+            ],
+            "schema": {
+              "data": "CommentReactionListData",
+              "result": "CommentReactionListResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_comments:read. Build to spec: `cursor` query param, return `pagination` as given. Live check: single page returned `pagination: {}` \u2014 stop when `next_page` is absent. Unverified how `cursor` relates to the `next_page` URL; if paging fails, likely fix is taking `cursor` from the next_page URL's query string. Errors: 403 invalid/expired token, 404 file not found."
+          },
+          "create_comment_reaction": {
+            "doc_file": "comments/create_comment_reaction.md",
+            "endpoint": "POST /v1/files/{file_key}/comments/{comment_id}/reactions",
+            "description": "Posts a new reaction on a file comment and returns a status acknowledgement.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to post comment reactions to (path). This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "comment_id",
+                "type": "str",
+                "required": true,
+                "description": "Path. ID of comment to react to."
+              },
+              {
+                "name": "emoji",
+                "type": "str",
+                "required": true,
+                "description": "Body. The emoji type of reaction as shortcode (e.g. `:heart:`, `:+1::skin-tone-2:`). Accepted shortcodes are listed in https://raw.githubusercontent.com/missive/emoji-mart/main/packages/emoji-mart-data/sets/14/native.json under the top-level emojis and aliases fields, with optional skin tone modifiers when applicable."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int (always 200)"
+              },
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              }
+            ],
+            "schema": {
+              "data": "CreateCommentReactionData",
+              "result": "CreateCommentReactionResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_comments:write. Docs say nothing is returned; spec and live call return {status: 200, error: false} (live also had `i18n: null`) \u2014 treat any 200 as success and allow extra fields. Invalid shortcode returns 400 {error: true, status: 400, message: \"Invalid emoji.\"}. Errors: 400 invalid emoji, 403 invalid/expired token, 404 file not found."
+          },
+          "delete_comment_reaction": {
+            "doc_file": "comments/delete_comment_reaction.md",
+            "endpoint": "DELETE /v1/files/{file_key}/comments/{comment_id}/reactions",
+            "description": "Deletes a specific reaction from a comment (only the person who made the reaction can delete it) and returns a status acknowledgement.",
+            "tier": "DELETE",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to delete comment reaction from (path). This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "comment_id",
+                "type": "str",
+                "required": true,
+                "description": "Path. ID of comment to delete reaction from."
+              },
+              {
+                "name": "emoji",
+                "type": "str",
+                "required": true,
+                "description": "Query param. The emoji type of reaction as shortcode (e.g. `:heart:`, `:+1::skin-tone-2:`). Accepted shortcodes are listed in https://raw.githubusercontent.com/missive/emoji-mart/main/packages/emoji-mart-data/sets/14/native.json under the top-level emojis and aliases fields, with optional skin tone modifiers when applicable."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int (always 200)"
+              },
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              }
+            ],
+            "schema": {
+              "data": "DeleteCommentReactionData",
+              "result": "DeleteCommentReactionResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_comments:write. Only the reaction's author can delete it. `emoji` is a query param and must be URL-encoded (`:%2B1:` for `:+1:`). Docs say nothing is returned; spec and live call return {status: 200, error: false} (live also had `i18n: null`) \u2014 treat any 200 as success and allow extra fields. Errors: 403 invalid/expired token, 404 file or comment not found."
+          }
+        }
+      },
+      "components": {
+        "file": "components_tools.py",
+        "doc_source": "components/",
+        "register_fn": "register_components_tools",
+        "tools": {
+          "list_team_components": {
+            "doc_file": "components/list_team_components.md",
+            "endpoint": "GET /v1/teams/{team_id}/components",
+            "description": "Returns a paginated list of published components within a team library.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "Id of the team to list components from."
+              },
+              {
+                "name": "page_size",
+                "type": "int",
+                "required": false,
+                "default": 30,
+                "description": "Number of items to return in a paged list of results. Defaults to 30. Maximum of 1000."
+              },
+              {
+                "name": "after",
+                "type": "int",
+                "required": false,
+                "description": "Cursor indicating which id after which to start retrieving components for. Exclusive with before. The cursor value is an internally tracked integer that doesn't correspond to any Ids."
+              },
+              {
+                "name": "before",
+                "type": "int",
+                "required": false,
+                "description": "Cursor indicating which id before which to start retrieving components for. Exclusive with after. The cursor value is an internally tracked integer that doesn't correspond to any Ids."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{components: list[dict{key: str, file_key: str, node_id: str, thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, containing_frame: dict{nodeId: str, name: str, backgroundColor: str, pageId: str, pageName: str, containingStateGroup (deprecated): dict{nodeId: str, name: str} | null, containingComponentSet: dict{nodeId: str, name: str} | null}}], cursor: dict{before: int, after: int}}"
+              }
+            ],
+            "schema": {
+              "data": "TeamComponentListData",
+              "result": "TeamComponentListResult"
+            },
+            "notes": "Tier 3 rate limit; scope team_library_content:read. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). Paging: pass meta.cursor.after back as after (or meta.cursor.before as before); after/before are mutually exclusive. meta.cursor may be {} when there are no results. page_size max 1000 (docs only, not in spec). team_id cannot be obtained programmatically - the user copies it from the team page URL in the Figma browser app. containing_frame: docs name the frame id node_id and type containingStateGroup/containingComponentSet as String; spec (used here) names it nodeId and makes both nullable objects {nodeId, name} - unverified live, so keep the model permissive. containingStateGroup is deprecated; use containingComponentSet. Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found). Live: empty library returned meta: {cursor: {}, components: []}."
+          },
+          "list_file_components": {
+            "doc_file": "components/list_file_components.md",
+            "endpoint": "GET /v1/files/{file_key}/components",
+            "description": "Returns a list of published components within a file library.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to list components from. This must be a main file key, not a branch key, as it is not possible to publish from branches."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{components: list[dict{key: str, file_key: str, node_id: str, thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, containing_frame: dict{nodeId: str, name: str, backgroundColor: str, pageId: str, pageName: str, containingStateGroup (deprecated): dict{nodeId: str, name: str} | null, containingComponentSet: dict{nodeId: str, name: str} | null}}]}"
+              }
+            ],
+            "schema": {
+              "data": "FileComponentListData",
+              "result": "FileComponentListResult"
+            },
+            "notes": "Tier 3 rate limit; scope library_content:read. file_key must be a main file key, not a branch key. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). (Live: unpublished component set returned an empty list.) containing_frame: docs name the frame id node_id and type containingStateGroup/containingComponentSet as String; spec (used here) names it nodeId and makes both nullable objects {nodeId, name} - unverified live, so keep the model permissive. containingStateGroup is deprecated; use containingComponentSet. Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          },
+          "get_component": {
+            "doc_file": "components/get_component.md",
+            "endpoint": "GET /v1/components/{key}",
+            "description": "Returns metadata on a component identified by its key.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "key",
+                "type": "str",
+                "required": true,
+                "description": "The unique identifier of the component."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{key: str, file_key: str, node_id: str, thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, containing_frame: dict{nodeId: str, name: str, backgroundColor: str, pageId: str, pageName: str, containingStateGroup (deprecated): dict{nodeId: str, name: str} | null, containingComponentSet: dict{nodeId: str, name: str} | null}}"
+              }
+            ],
+            "schema": {
+              "data": "ComponentData",
+              "result": "ComponentResult"
+            },
+            "notes": "Tier 3 rate limit; scope library_assets:read. 404 means the key doesn't exist OR the component isn't published to a team library (live: {error: true, status: 404, message: \"Component not found.\", i18n: null}); the 404 message should name both causes and point to get_file (full depth) for local, unpublished components. containing_frame: docs name the frame id node_id and type containingStateGroup/containingComponentSet as String; spec (used here) names it nodeId and makes both nullable objects {nodeId, name} - unverified live, so keep the model permissive. containingStateGroup is deprecated; use containingComponentSet. Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          },
+          "list_team_component_sets": {
+            "doc_file": "components/list_team_component_sets.md",
+            "endpoint": "GET /v1/teams/{team_id}/component_sets",
+            "description": "Returns a paginated list of published component sets within a team library.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "Id of the team to list component sets from."
+              },
+              {
+                "name": "page_size",
+                "type": "int",
+                "required": false,
+                "default": 30,
+                "description": "Number of items to return in a paged list of results. Defaults to 30."
+              },
+              {
+                "name": "after",
+                "type": "int",
+                "required": false,
+                "description": "Cursor indicating which id after which to start retrieving component sets for. Exclusive with before. The cursor value is an internally tracked integer that doesn't correspond to any Ids."
+              },
+              {
+                "name": "before",
+                "type": "int",
+                "required": false,
+                "description": "Cursor indicating which id before which to start retrieving component sets for. Exclusive with after. The cursor value is an internally tracked integer that doesn't correspond to any Ids."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{component_sets: list[dict{key: str, file_key: str, node_id: str, thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, containing_frame: dict{nodeId: str, name: str, backgroundColor: str, pageId: str, pageName: str, containingStateGroup (deprecated): dict{nodeId: str, name: str} | null, containingComponentSet: dict{nodeId: str, name: str} | null}}], cursor: dict{before: int, after: int}}"
+              }
+            ],
+            "schema": {
+              "data": "TeamComponentSetListData",
+              "result": "TeamComponentSetListResult"
+            },
+            "notes": "Tier 3 rate limit; scope team_library_content:read. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). Paging: pass meta.cursor.after back as after (or meta.cursor.before as before); after/before are mutually exclusive. meta.cursor may be {} when there are no results. team_id cannot be obtained programmatically - the user copies it from the team page URL in the Figma browser app. containing_frame: docs name the frame id node_id and type containingStateGroup/containingComponentSet as String; spec (used here) names it nodeId and makes both nullable objects {nodeId, name} - unverified live, so keep the model permissive. containingStateGroup is deprecated; use containingComponentSet. Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          },
+          "list_file_component_sets": {
+            "doc_file": "components/list_file_component_sets.md",
+            "endpoint": "GET /v1/files/{file_key}/component_sets",
+            "description": "Returns a list of published component sets within a file library.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to list component sets from. This must be a main file key, not a branch key, as it is not possible to publish from branches."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{component_sets: list[dict{key: str, file_key: str, node_id: str, thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, containing_frame: dict{nodeId: str, name: str, backgroundColor: str, pageId: str, pageName: str, containingStateGroup (deprecated): dict{nodeId: str, name: str} | null, containingComponentSet: dict{nodeId: str, name: str} | null}}]}"
+              }
+            ],
+            "schema": {
+              "data": "FileComponentSetListData",
+              "result": "FileComponentSetListResult"
+            },
+            "notes": "Tier 3 rate limit; scope library_content:read. file_key must be a main file key, not a branch key. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). (Live: unpublished component set returned an empty list.) containing_frame: docs name the frame id node_id and type containingStateGroup/containingComponentSet as String; spec (used here) names it nodeId and makes both nullable objects {nodeId, name} - unverified live, so keep the model permissive. containingStateGroup is deprecated; use containingComponentSet. Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          },
+          "get_component_set": {
+            "doc_file": "components/get_component_set.md",
+            "endpoint": "GET /v1/component_sets/{key}",
+            "description": "Returns metadata on a published component set identified by its key.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "key",
+                "type": "str",
+                "required": true,
+                "description": "The unique identifier of the component set."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{key: str, file_key: str, node_id: str, thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, containing_frame: dict{nodeId: str, name: str, backgroundColor: str, pageId: str, pageName: str, containingStateGroup (deprecated): dict{nodeId: str, name: str} | null, containingComponentSet: dict{nodeId: str, name: str} | null}}"
+              }
+            ],
+            "schema": {
+              "data": "ComponentSetData",
+              "result": "ComponentSetResult"
+            },
+            "notes": "Tier 3 rate limit; scope library_assets:read. 404 means the key doesn't exist OR the component set isn't published to a team library (live: {error: true, status: 404, message: \"Component set not found.\", i18n: null}); the 404 message should name both causes and point to get_file (full depth) for local, unpublished component sets. containing_frame: docs name the frame id node_id and type containingStateGroup/containingComponentSet as String; spec (used here) names it nodeId and makes both nullable objects {nodeId, name} - unverified live, so keep the model permissive. containingStateGroup is deprecated; use containingComponentSet. Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          },
+          "list_team_styles": {
+            "doc_file": "components/list_team_styles.md",
+            "endpoint": "GET /v1/teams/{team_id}/styles",
+            "description": "Returns a paginated list of published styles within a team library.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "Id of the team to list styles from."
+              },
+              {
+                "name": "page_size",
+                "type": "int",
+                "required": false,
+                "default": 30,
+                "description": "Number of items to return in a paged list of results. Defaults to 30."
+              },
+              {
+                "name": "after",
+                "type": "int",
+                "required": false,
+                "description": "Cursor indicating which id after which to start retrieving styles for. Exclusive with before. The cursor value is an internally tracked integer that doesn't correspond to any Ids."
+              },
+              {
+                "name": "before",
+                "type": "int",
+                "required": false,
+                "description": "Cursor indicating which id before which to start retrieving styles for. Exclusive with after. The cursor value is an internally tracked integer that doesn't correspond to any Ids."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{styles: list[dict{key: str, file_key: str, node_id: str, style_type: str (FILL|TEXT|EFFECT|GRID), thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, sort_position: str}], cursor: dict{before: int, after: int}}"
+              }
+            ],
+            "schema": {
+              "data": "TeamStyleListData",
+              "result": "TeamStyleListResult"
+            },
+            "notes": "Tier 3 rate limit; scope team_library_content:read. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). Paging: pass meta.cursor.after back as after (or meta.cursor.before as before); after/before are mutually exclusive. meta.cursor may be {} when there are no results. team_id cannot be obtained programmatically - the user copies it from the team page URL in the Figma browser app. Style items have no containing_frame (docs types page lists it, spec and endpoint page don't; spec used). Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found). Live check confirmed spec item fields exactly (sort_position is a string); meta.cursor was {after: <int>} mid-list. Live responses carry an undocumented i18n field (null or string) - output schemas must allow extra fields."
+          },
+          "list_file_styles": {
+            "doc_file": "components/list_file_styles.md",
+            "endpoint": "GET /v1/files/{file_key}/styles",
+            "description": "Returns a list of published styles within a file library.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to list styles from. This must be a main file key, not a branch key, as it is not possible to publish from branches."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{styles: list[dict{key: str, file_key: str, node_id: str, style_type: str (FILL|TEXT|EFFECT|GRID), thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, sort_position: str}]}"
+              }
+            ],
+            "schema": {
+              "data": "FileStyleListData",
+              "result": "FileStyleListResult"
+            },
+            "notes": "Tier 3 rate limit; scope library_content:read. file_key must be a main file key, not a branch key. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). Style items have no containing_frame (docs types page lists it, spec and endpoint page don't; spec used). Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          },
+          "get_style": {
+            "doc_file": "components/get_style.md",
+            "endpoint": "GET /v1/styles/{key}",
+            "description": "Returns metadata on a style identified by its key.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "key",
+                "type": "str",
+                "required": true,
+                "description": "The unique identifier of the style."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "int"
+              },
+              {
+                "name": "error",
+                "type": "bool"
+              },
+              {
+                "name": "meta",
+                "type": "dict{key: str, file_key: str, node_id: str, style_type: str (FILL|TEXT|EFFECT|GRID), thumbnail_url: str, name: str, description: str, created_at: str (date-time), updated_at: str (date-time), user: dict{id: str, handle: str, img_url: str}, sort_position: str}"
+              }
+            ],
+            "schema": {
+              "data": "StyleData",
+              "result": "StyleResult"
+            },
+            "notes": "Tier 3 rate limit; scope library_assets:read. Only library-published assets are returned; local/unpublished assets are only visible via get_file (full depth). Style items have no containing_frame (docs types page lists it, spec and endpoint page don't; spec used). Errors: 400 (message describes the error), 403 (insufficient team permission or invalid/expired token), 404 (not found)."
+          }
+        }
+      },
+      "dev_resources": {
+        "file": "dev_resources_tools.py",
+        "doc_source": "dev_resources/",
+        "register_fn": "register_dev_resources_tools",
+        "tools": {
+          "list_dev_resources": {
+            "doc_file": "dev_resources/list_dev_resources.md",
+            "endpoint": "GET /v1/files/{file_key}/dev_resources",
+            "description": "Gets the dev resources in a file and returns them as a list.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "The file to get the dev resources from. This must be a main file key, not a branch key."
+              },
+              {
+                "name": "node_ids",
+                "type": "str",
+                "required": false,
+                "description": "Comma separated list of nodes that you care about in the document. If specified, only dev resources attached to these nodes will be returned. If not specified, all dev resources in the file will be returned."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "dev_resources",
+                "type": "list[dict{id: str, name: str, url: str, file_key: str, node_id: str}]"
+              }
+            ],
+            "schema": {
+              "data": "DevResourceListData",
+              "result": "DevResourceListResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_dev_resources:read. Error bodies are {status, error: true, message} \u2014 pass message through. Live check (2026-11-25, PAT, non-Enterprise plan): readable file returned 404 'File not found' \u2014 likely dev resources (Dev Mode) unavailable for that plan/seat (unconfirmed); the tool should say so rather than claim the file doesn't exist."
+          },
+          "create_dev_resources": {
+            "doc_file": "dev_resources/create_dev_resources.md",
+            "endpoint": "POST /v1/dev_resources",
+            "description": "Bulk creates dev resources across multiple files and returns the created ones in `links_created` and any failures in `errors`, which may still come back with a 200 status.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "dev_resources",
+                "type": "list[dict]",
+                "required": true,
+                "description": "An array of dev resources to create. Each item is an object with required keys: name (str, the name of the dev resource), url (str, the URL of the dev resource), file_key (str, the file key where the dev resource belongs; must be a main file key, not a branch key), node_id (str, the target node to attach the dev resource to)."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "links_created",
+                "type": "list[dict{id: str, name: str, url: str, file_key: str, node_id: str}]"
+              },
+              {
+                "name": "errors",
+                "type": "list[dict{file_key: str | None, node_id: str | None, error: str}]"
+              }
+            ],
+            "schema": {
+              "data": "CreateDevResourcesData",
+              "result": "CreateDevResourcesResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_dev_resources:write. Partial failure: may return 200 with failures in `errors` (file_key not found, node already has max 10 dev resources, duplicate url on node) \u2014 tool must surface `errors`, not report plain success. `errors` is optional; errors[].file_key/node_id can be null. Error bodies {status, error: true, message} \u2014 pass message through. Live check (2026-11-25, PAT, non-Enterprise): 200 with links_created: [] and errors [{file_key, node_id, error: 'File not found'}] on a readable file \u2014 likely a Dev Mode plan/seat limitation (unconfirmed); say so rather than claim the file doesn't exist."
+          },
+          "update_dev_resources": {
+            "doc_file": "dev_resources/update_dev_resources.md",
+            "endpoint": "PUT /v1/dev_resources",
+            "description": "Bulk updates dev resources across multiple files and returns the updated IDs in `links_updated` and any failures in `errors`, which may still come back with a 200 status.",
+            "tier": "UPDATE_MANY",
+            "params": [
+              {
+                "name": "dev_resources",
+                "type": "list[dict]",
+                "required": true,
+                "description": "An array of dev resources to update. Each item is an object with required key id (str, unique identifier of the dev resource) and optional keys name (str, the name of the dev resource) and url (str, the URL of the dev resource). The file and node cannot be changed."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "links_updated",
+                "type": "list[dict{id: str, name: str, url: str, file_key: str, node_id: str}]"
+              },
+              {
+                "name": "errors",
+                "type": "list[dict{id: str, error: str}]"
+              }
+            ],
+            "schema": {
+              "data": "UpdateDevResourcesData",
+              "result": "UpdateDevResourcesResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_dev_resources:write. Partial failure: may return 200 with failures in `errors` \u2014 tool must surface them. Docs vs spec: docs type links_updated as String[] (ids), spec as full dev resource objects \u2014 build to the spec; unverified live, so if output validation fails on links_updated the docs' shape is the cause. Spec's response `required` lists `links_created` (likely a spec typo) \u2014 treat both fields as optional. Error bodies {status, error: true, message} \u2014 pass message through. Live 'File not found' on readable files likely a Dev Mode plan/seat limitation (unconfirmed)."
+          },
+          "delete_dev_resource": {
+            "doc_file": "dev_resources/delete_dev_resource.md",
+            "endpoint": "DELETE /v1/files/{file_key}/dev_resources/{dev_resource_id}",
+            "description": "Deletes a dev resource from a file.",
+            "tier": "DELETE",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "The file to delete the dev resource from. This must be a main file key, not a branch key."
+              },
+              {
+                "name": "dev_resource_id",
+                "type": "str",
+                "required": true,
+                "description": "The id of the dev resource to delete."
+              }
+            ],
+            "response_fields": [],
+            "schema": {
+              "data": "DeleteDevResourceData",
+              "result": "DeleteDevResourceResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_dev_resources:write. Nothing is returned (200 has no body) \u2014 treat any 200 as success. 404 = dev resource/file not found; error bodies {status, error: true, message} \u2014 pass message through. Live 'File not found' on readable files likely a Dev Mode plan/seat limitation (unconfirmed)."
+          }
+        }
+      },
+      "files": {
+        "file": "files_tools.py",
+        "doc_source": "files/",
+        "register_fn": "register_files_tools",
+        "tools": {
+          "get_file": {
+            "doc_file": "files/get_file.md",
+            "endpoint": "GET /v1/files/{file_key}",
+            "description": "Returns the Figma file identified by file_key as JSON, including its document node tree, components, styles, and file metadata.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "(path) File to export JSON from. This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "version",
+                "type": "str",
+                "required": false,
+                "description": "(query) A specific version ID to get. Omitting this will get the current version of the file."
+              },
+              {
+                "name": "ids",
+                "type": "str",
+                "required": false,
+                "description": "(query) Comma separated list of nodes that you care about in the document. If specified, only a subset of the document will be returned corresponding to the nodes listed, their children, and everything between the root node and the listed nodes. Note: There may be other nodes included in the returned JSON that are outside the ancestor chains of the desired nodes. The response may also include dependencies of anything in the nodes' subtrees. For example, if a node subtree contains an instance of a local component that lives elsewhere in that file, that component and its ancestor chain will also be included. For historical reasons, top-level canvas nodes are always returned, regardless of whether they are listed in the `ids` parameter. This quirk may be removed in a future version of the API."
+              },
+              {
+                "name": "depth",
+                "type": "int",
+                "required": false,
+                "description": "(query) Positive integer representing how deep into the document tree to traverse. For example, setting this to 1 returns only Pages, setting it to 2 returns Pages and all top level objects on each page. Not setting this parameter returns all nodes."
+              },
+              {
+                "name": "geometry",
+                "type": "str",
+                "required": false,
+                "description": "(query) Set to \"paths\" to export vector data."
+              },
+              {
+                "name": "plugin_data",
+                "type": "str",
+                "required": false,
+                "description": "(query) A comma separated list of plugin IDs and/or the string \"shared\". Any data present in the document written by those plugins will be included in the result in the `pluginData` and `sharedPluginData` properties."
+              },
+              {
+                "name": "branch_data",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Returns branch metadata for the requested file. If the file is a branch, the main file's key will be included in the returned response. If the file has branches, their metadata will be included in the returned response. Default: false."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "role",
+                "type": "Literal['owner', 'editor', 'viewer']"
+              },
+              {
+                "name": "lastModified",
+                "type": "str (date-time)"
+              },
+              {
+                "name": "editorType",
+                "type": "Literal['figma', 'figjam']"
+              },
+              {
+                "name": "thumbnailUrl",
+                "type": "str | None"
+              },
+              {
+                "name": "version",
+                "type": "str"
+              },
+              {
+                "name": "document",
+                "type": "dict (DocumentNode layer tree; nodes nest via children)"
+              },
+              {
+                "name": "components",
+                "type": "dict[str, dict] (component ID -> {key, name, description, componentSetId, documentationLinks, remote})"
+              },
+              {
+                "name": "componentSets",
+                "type": "dict[str, dict] (component set ID -> {key, name, description, documentationLinks, remote})"
+              },
+              {
+                "name": "schemaVersion",
+                "type": "float (default 0)"
+              },
+              {
+                "name": "styles",
+                "type": "dict[str, dict] (style ID -> {key, name, description, remote, styleType})"
+              },
+              {
+                "name": "linkAccess",
+                "type": "str | None"
+              },
+              {
+                "name": "mainFileKey",
+                "type": "str | None"
+              },
+              {
+                "name": "branches",
+                "type": "list[{key: str, name: str, thumbnail_url: str, last_modified: str}] | None"
+              }
+            ],
+            "schema": {
+              "data": "GetFileData",
+              "result": "GetFileResult"
+            },
+            "notes": "Tier 1 rate limit; scope file_content:read. Full-file responses can be huge and may 400 on timeout - steer callers to depth/ids or get_file_nodes. Live check: components/componentSets maps only cover nodes within the requested depth (empty at depth=1). Nodes also carry undocumented complexStrokeProperties and docs list branches[].link_access not in spec (spec used) - output schema must allow extra fields. Errors: 403 invalid/expired token, 404 file not found."
+          },
+          "get_file_nodes": {
+            "doc_file": "files/get_file_nodes.md",
+            "endpoint": "GET /v1/files/{file_key}/nodes",
+            "description": "Returns the nodes referenced by ids as JSON, retrieved from the Figma file identified by file_key.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "(path) File to export JSON from. This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "ids",
+                "type": "str",
+                "required": true,
+                "description": "(query) A comma separated list of node IDs to retrieve and convert."
+              },
+              {
+                "name": "version",
+                "type": "str",
+                "required": false,
+                "description": "(query) A specific version ID to get. Omitting this will get the current version of the file."
+              },
+              {
+                "name": "depth",
+                "type": "int",
+                "required": false,
+                "description": "(query) Positive integer representing how deep into the node tree to traverse. For example, setting this to 1 will return only the children directly underneath the desired nodes. Not setting this parameter returns all nodes. Note: this parameter behaves differently from the same parameter in the `GET /v1/files/:key` endpoint. In this endpoint, the depth will be counted starting from the desired node rather than the document root node."
+              },
+              {
+                "name": "geometry",
+                "type": "str",
+                "required": false,
+                "description": "(query) Set to \"paths\" to export vector data."
+              },
+              {
+                "name": "plugin_data",
+                "type": "str",
+                "required": false,
+                "description": "(query) A comma separated list of plugin IDs and/or the string \"shared\". Any data present in the document written by those plugins will be included in the result in the `pluginData` and `sharedPluginData` properties."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "role",
+                "type": "Literal['owner', 'editor', 'viewer']"
+              },
+              {
+                "name": "lastModified",
+                "type": "str (date-time)"
+              },
+              {
+                "name": "editorType",
+                "type": "Literal['figma', 'figjam']"
+              },
+              {
+                "name": "thumbnailUrl",
+                "type": "str"
+              },
+              {
+                "name": "version",
+                "type": "str"
+              },
+              {
+                "name": "nodes",
+                "type": "dict[str, {document: dict, components: dict[str, dict], componentSets: dict[str, dict], schemaVersion: float, styles: dict[str, dict]} | None]"
+              }
+            ],
+            "schema": {
+              "data": "GetFileNodesData",
+              "result": "GetFileNodesResult"
+            },
+            "notes": "Tier 1 rate limit; scope file_content:read. nodes map values may be null (node id not in file) - schema must allow None. No vector data unless geometry=paths. Docs list err/linkAccess but spec 200 omits them (spec used); nodes carry undocumented complexStrokeProperties - allow extra fields. Errors: 400 invalid param (err names it), 403 invalid/expired token, 404 file not found."
+          },
+          "render_images": {
+            "doc_file": "files/render_images.md",
+            "endpoint": "GET /v1/images/{file_key}",
+            "description": "Renders images of nodes in a Figma file and returns a map from node IDs to URLs of the rendered images, which expire after 30 days.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "(path) File to export images from. This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "ids",
+                "type": "str",
+                "required": true,
+                "description": "(query) A comma separated list of node IDs to render."
+              },
+              {
+                "name": "version",
+                "type": "str",
+                "required": false,
+                "description": "(query) A specific version ID to get. Omitting this will get the current version of the file."
+              },
+              {
+                "name": "scale",
+                "type": "float",
+                "required": false,
+                "description": "(query) A number between 0.01 and 4, the image scaling factor."
+              },
+              {
+                "name": "format",
+                "type": "Literal['jpg', 'png', 'svg', 'pdf']",
+                "required": false,
+                "description": "(query) A string enum for the image output format. One of jpg, png, svg, pdf. Default: png."
+              },
+              {
+                "name": "svg_outline_text",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Whether text elements are rendered as outlines (vector paths) or as `<text>` elements in SVGs. Rendering text elements as outlines guarantees that the text looks exactly the same in the SVG as it does in the browser/inside Figma. Exporting as `<text>` allows text to be selectable inside SVGs and generally makes the SVG easier to read. However, this relies on the browser's rendering engine which can vary between browsers and/or operating systems. As such, visual accuracy is not guaranteed as the result could look different than in Figma. Default: true."
+              },
+              {
+                "name": "svg_include_id",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Whether to include id attributes for all SVG elements. Adds the layer name to the `id` attribute of an svg element. Default: false."
+              },
+              {
+                "name": "svg_include_node_id",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Whether to include node id attributes for all SVG elements. Adds the node id to a `data-node-id` attribute of an svg element. Default: false."
+              },
+              {
+                "name": "svg_simplify_stroke",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Whether to simplify inside/outside strokes and use stroke attribute if possible instead of `<mask>`. Default: true."
+              },
+              {
+                "name": "contents_only",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Whether content that overlaps the node should be excluded from rendering. Passing false (i.e., rendering overlaps) may increase processing time, since more of the document must be included in rendering. Default: true."
+              },
+              {
+                "name": "use_absolute_bounds",
+                "type": "bool",
+                "required": false,
+                "description": "(query) Use the full dimensions of the node regardless of whether or not it is cropped or the space around it is empty. Use this to export text nodes without cropping. Default: false."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "err",
+                "type": "None"
+              },
+              {
+                "name": "images",
+                "type": "dict[str, str | None] (node ID -> image URL)"
+              }
+            ],
+            "schema": {
+              "data": "RenderImagesData",
+              "result": "RenderImagesResult"
+            },
+            "notes": "Tier 1 rate limit; scope file_content:read. Read-only (creates nothing in the file). images values may be null when a node fails to render (missing, invisible, 0% opacity); every requested id appears in the map. URLs expire after 30 days; images over 32 megapixels are scaled down. Docs list status (omitted on success) - spec used. Errors: 400 invalid param (err names it), 403 invalid/expired token, 404 file not found, 500 render failure (often too-large render; reduce number/size of nodes)."
+          },
+          "get_image_fills": {
+            "doc_file": "files/get_image_fills.md",
+            "endpoint": "GET /v1/files/{file_key}/images",
+            "description": "Returns download links for all images used in image fills in a Figma file, as a map from image references to URLs.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "(path) File to get image URLs from. This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              },
+              {
+                "name": "status",
+                "type": "float (200)"
+              },
+              {
+                "name": "meta",
+                "type": "{images: dict[str, str]} (imageRef -> image fill URL)"
+              }
+            ],
+            "schema": {
+              "data": "GetImageFillsData",
+              "result": "GetImageFillsResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_content:read. Docs page shows images at top level but the spec and a live call put them under meta.images - use spec shape. Live responses also carry an undocumented i18n field (null or string key) - output schema must allow extra fields. URLs expire within 14 days; imageRef values come from Paint fills in get_file/get_file_nodes. Errors: 403 invalid/expired token, 404 file not found."
+          },
+          "get_file_metadata": {
+            "doc_file": "files/get_file_metadata.md",
+            "endpoint": "GET /v1/files/{file_key}/meta",
+            "description": "Returns metadata for a Figma file, including its name, folder, creator, last touched time, thumbnail, editor type, link access, and URL.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "(path) File to get metadata for. This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "file",
+                "type": "{name: str, folder_name: str | None, last_touched_at: str (date-time), creator: {id: str, handle: str, img_url: str}, last_touched_by: {id: str, handle: str, img_url: str} | None, thumbnail_url: str | None, editorType: Literal['figma', 'figjam', 'slides', 'buzz', 'sites', 'make'], role: Literal['owner', 'editor', 'viewer'] | None, link_access: Literal['view', 'edit', 'org_view', 'org_edit', 'inherit'] | None, url: str | None, version: str | None}"
+              }
+            ],
+            "schema": {
+              "data": "GetFileMetadataData",
+              "result": "GetFileMetadataResult"
+            },
+            "notes": "Tier 3 rate limit; scope file_metadata:read (different from the other files tools). Cheaper than get_file for name/owner/last-modified/version checks. editorType enum here is wider than get_file's. Errors: 403 invalid/expired token, 404 file not found."
+          },
+          "duplicate_file": {
+            "doc_file": "files/duplicate_file.md",
+            "endpoint": "POST /v1/files/{file_key}/duplicate",
+            "description": "Duplicates a main file or branch into the specified folder as a new standalone file (Enterprise private OAuth apps only) and returns the new file's key, name, folder_id, editor_type, and created_at.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "(path) The key of the main file or branch to duplicate."
+              },
+              {
+                "name": "folder_id",
+                "type": "str",
+                "required": true,
+                "description": "(body) The ID of the folder to create the duplicated file in."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "file_key",
+                "type": "str"
+              },
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "folder_id",
+                "type": "str"
+              },
+              {
+                "name": "editor_type",
+                "type": "Literal['figma', 'figjam', 'slides', 'buzz', 'make']"
+              },
+              {
+                "name": "created_at",
+                "type": "str (date-time)"
+              }
+            ],
+            "schema": {
+              "data": "DuplicateFileData",
+              "result": "DuplicateFileResult"
+            },
+            "notes": "Tier 2 rate limit; scope file_duplicate:write. Works only via a private OAuth app on an Enterprise plan; public-app connections get a generic 403 (or 404 'endpoint is not enabled') - return Figma's err/message plus the app/plan explanation and fail fast for known public-app connections (see auth.md 'Error handling for access limits'). Source file and destination folder must belong to that Enterprise plan; copy uses the latest saved checkpoint. Errors: 400 invalid body / file type not duplicable, 401 unauthenticated, 403 no permission, 404 file/folder not found or endpoint not enabled, 429 throttled, 500 internal."
+          }
+        }
+      },
+      "folders": {
+        "file": "folders_tools.py",
+        "doc_source": "folders/",
+        "register_fn": "register_folders_tools",
+        "tools": {
+          "create_folder": {
+            "doc_file": "folders/create_folder.md",
+            "endpoint": "POST /v1/teams/{team_id}/folders",
+            "description": "Creates a new top-level folder in a team and returns the created folder; available to Enterprise private OAuth apps only.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "The ID of the team in which to create the folder."
+              },
+              {
+                "name": "name",
+                "type": "str",
+                "required": true,
+                "description": "The name of the folder."
+              },
+              {
+                "name": "sharing_audience_control",
+                "type": "Literal['plan_view', 'plan_edit', 'invite_only', 'workspace_view', 'workspace_edit']",
+                "required": true,
+                "description": "The audience that can access the folder: plan_view, plan_edit, invite_only, workspace_view or workspace_edit. Workspace audiences require the specified team to belong to a workspace."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "id",
+                "type": "str"
+              },
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "parent_folder_id",
+                "type": "str | None"
+              },
+              {
+                "name": "sharing_audience_control",
+                "type": "str (enum: plan_view, plan_edit, invite_only, workspace_view, workspace_edit)"
+              },
+              {
+                "name": "created_at",
+                "type": "str (date-time)"
+              }
+            ],
+            "schema": {
+              "data": "CreateFolderData",
+              "result": "CreateFolderResult"
+            },
+            "notes": "Path is /v1 (the other folder tools are /v2). Requires folders:write scope; works only via a private OAuth app on an Enterprise plan \u2014 public-app connections get a generic 403 (or 404 'endpoint is not enabled'); return Figma's err/message plus the app/plan explanation and fail fast if the connection is known to be a public app (see auth.md 'Error handling for access limits'). Body has additionalProperties: false \u2014 send only name and sharing_audience_control. Response is an allOf: all five fields required; parent_folder_id is null (top-level). Tier 2 rate limit. Not live-verified."
+          },
+          "list_team_folders": {
+            "doc_file": "folders/list_team_folders.md",
+            "endpoint": "GET /v2/teams/{team_id}/folders",
+            "description": "Returns the list of top-level folders (previously called \"projects\") within the specified team.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "ID of the team to list folders from. Not obtainable programmatically: it is the number after /team/ in the team page URL in the Figma file browser, or the id returned by create_team."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "folders",
+                "type": "list[dict] (id: str, name: str, parent_folder_id: str | None, sharing_audience_control?: str, created_at?: str date-time)"
+              }
+            ],
+            "schema": {
+              "data": "TeamFolderListData",
+              "result": "TeamFolderListResult"
+            },
+            "notes": "Requires folders:read scope, which cannot be used with public OAuth apps \u2014 public-app connections get a generic 403; return Figma's err plus the app explanation and fail fast if known public app (auth.md 'Error handling for access limits'). Docs page gives no return value; the spec response is the only source. In folders[] only id, name, parent_folder_id are required; live check (PAT, 2026-11-25) returned only those three, so sharing_audience_control/created_at must be optional. Only folders visible to the caller are returned. Tier 2 rate limit; no paging documented."
+          },
+          "list_subfolders": {
+            "doc_file": "folders/list_subfolders.md",
+            "endpoint": "GET /v2/folders/{folder_id}/folders",
+            "description": "Returns the list of direct subfolders within the specified folder.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "folder_id",
+                "type": "str",
+                "required": true,
+                "description": "ID of the parent folder to list subfolders from."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "folders",
+                "type": "list[dict] (id: str, name: str, parent_folder_id: str | None, sharing_audience_control?: str, created_at?: str date-time)"
+              }
+            ],
+            "schema": {
+              "data": "SubfolderListData",
+              "result": "SubfolderListResult"
+            },
+            "notes": "Requires folders:read scope, which cannot be used with public OAuth apps \u2014 public-app connections get a generic 403; return Figma's err plus the app explanation and fail fast if known public app. Direct children only; call again on each returned id to walk deeper. Docs page gives no return value; spec is the only source. In folders[] only id, name, parent_folder_id are required. Tier 2 rate limit. Not live-verified."
+          },
+          "list_folder_files": {
+            "doc_file": "folders/list_folder_files.md",
+            "endpoint": "GET /v2/folders/{folder_id}/files",
+            "description": "Returns the list of files directly within the specified folder.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "folder_id",
+                "type": "str",
+                "required": true,
+                "description": "ID of the folder to list files from."
+              },
+              {
+                "name": "branch_data",
+                "type": "bool",
+                "required": false,
+                "default": false,
+                "description": "Returns branch metadata in the response for each main file with a branch inside the folder."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "files",
+                "type": "list[dict] (key: str, name: str, thumbnail_url?: str, last_modified: str date-time, branches?: list[dict] (key: str, name: str, thumbnail_url?: str, last_modified: str date-time))"
+              }
+            ],
+            "schema": {
+              "data": "FolderFileListData",
+              "result": "FolderFileListResult"
+            },
+            "notes": "Requires folders:read scope, which cannot be used with public OAuth apps \u2014 public-app connections get a generic 403; return Figma's err plus the app explanation and fail fast if known public app. Files directly in the folder only (no subfolder contents). files[].branches is present only when branch_data=true and the file has branches. Docs page gives no return value; spec is the only source. Live check (PAT, 2026-11-25): items had key, name, thumbnail_url, last_modified, no branches. Tier 2 rate limit."
+          },
+          "get_folder_metadata": {
+            "doc_file": "folders/get_folder_metadata.md",
+            "endpoint": "GET /v2/folders/{folder_id}/meta",
+            "description": "Returns metadata for a folder (name, thumbnail, file count, timestamps) without enumerating its files.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "folder_id",
+                "type": "str",
+                "required": true,
+                "description": "ID of the folder to get metadata for."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "id",
+                "type": "str"
+              },
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "thumbnail_url",
+                "type": "str | None"
+              },
+              {
+                "name": "file_count",
+                "type": "int"
+              },
+              {
+                "name": "updated_at",
+                "type": "str (date-time)"
+              },
+              {
+                "name": "created_at",
+                "type": "str (date-time)"
+              }
+            ],
+            "schema": {
+              "data": "FolderMetadataData",
+              "result": "FolderMetadataResult"
+            },
+            "notes": "Requires folder_metadata:read scope; available to all OAuth apps (the one folders tool public apps can use \u2014 there the user must supply folder_id). thumbnail_url is null when the folder has no files. Live check (2026-11-25): a personal access token got 401 'Missing credentials' \u2014 the spec accepts only OAuth2 and plan access tokens, so the 401 means the token type isn't accepted; 200 shape not yet verified over OAuth. Tier 3 rate limit."
+          }
+        }
+      },
+      "library_analytics": {
+        "file": "library_analytics_tools.py",
+        "doc_source": "library_analytics/",
+        "register_fn": "register_library_analytics_tools",
+        "tools": {
+          "list_library_component_actions": {
+            "doc_file": "library_analytics/list_library_component_actions.md",
+            "endpoint": "GET /v1/analytics/libraries/{file_key}/component/actions",
+            "description": "Returns library analytics component actions data broken down by the requested dimension.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File key of the library to fetch analytics data for."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Cursor indicating what page of data to fetch. Obtained from prior API call."
+              },
+              {
+                "name": "group_by",
+                "type": "Literal['component', 'team']",
+                "required": true,
+                "description": "A dimension to group returned analytics data by. One of: component, team."
+              },
+              {
+                "name": "start_date",
+                "type": "str",
+                "required": false,
+                "description": "ISO 8601 date string (YYYY-MM-DD) of the earliest week to include. Dates are rounded back to the nearest start of a week. Defaults to one year prior."
+              },
+              {
+                "name": "end_date",
+                "type": "str",
+                "required": false,
+                "description": "ISO 8601 date string (YYYY-MM-DD) of the latest week to include. Dates are rounded forward to the nearest end of a week. Defaults to the latest computed week."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "rows",
+                "type": "list[dict] (shape depends on group_by): group_by=component -> {week: str, component_key: str, component_name: str, component_set_key?: str, component_set_name?: str, detachments: number, insertions: number}; group_by=team -> {week: str, team_name: str, workspace_name?: str, detachments: number, insertions: number}"
+              },
+              {
+                "name": "next_page",
+                "type": "bool"
+              },
+              {
+                "name": "cursor",
+                "type": "str | None (absent when next_page is false)"
+              }
+            ],
+            "schema": {
+              "data": "LibraryComponentActionListData",
+              "result": "LibraryComponentActionListResult"
+            },
+            "notes": "Enterprise plan only; requires library_analytics:read scope (Tier 3 rate limit). Pass Figma's 403 `message` through (Limited by Figma plan / Incorrect account type / Invalid scope) with the explanation from auth.md -> Error handling for access limits; live check 2026-11-25 confirmed 403 'Invalid scope: [...]. This endpoint requires the library_analytics:read scope.' for a PAT without it. Cursor paging: max 1,000 rows/page; pass returned `cursor` back while next_page is true. Docs name the path param library_file_key, spec names it file_key (spec used). Rows are a oneOf keyed by group_by; inaccessible teams/files appear as 'Team not visible' / 'File not visible'. Time series, descending (most recent first); only weeks with data returned; up to one year of data."
+          },
+          "list_library_component_usages": {
+            "doc_file": "library_analytics/list_library_component_usages.md",
+            "endpoint": "GET /v1/analytics/libraries/{file_key}/component/usages",
+            "description": "Returns library analytics component usage data broken down by the requested dimension.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File key of the library to fetch analytics data for."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Cursor indicating what page of data to fetch. Obtained from prior API call."
+              },
+              {
+                "name": "group_by",
+                "type": "Literal['component', 'file']",
+                "required": true,
+                "description": "A dimension to group returned analytics data by. One of: component, file."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "rows",
+                "type": "list[dict] (shape depends on group_by): group_by=component -> {component_key: str, component_name: str, component_set_key?: str, component_set_name?: str, usages: number, teams_using: number, files_using: number}; group_by=file -> {file_name: str, team_name: str, workspace_name?: str, usages: number}"
+              },
+              {
+                "name": "next_page",
+                "type": "bool"
+              },
+              {
+                "name": "cursor",
+                "type": "str | None (absent when next_page is false)"
+              }
+            ],
+            "schema": {
+              "data": "LibraryComponentUsageListData",
+              "result": "LibraryComponentUsageListResult"
+            },
+            "notes": "Enterprise plan only; requires library_analytics:read scope (Tier 3 rate limit). Pass Figma's 403 `message` through (Limited by Figma plan / Incorrect account type / Invalid scope) with the explanation from auth.md -> Error handling for access limits; live check 2026-11-25 confirmed 403 'Invalid scope: [...]. This endpoint requires the library_analytics:read scope.' for a PAT without it. Cursor paging: max 1,000 rows/page; pass returned `cursor` back while next_page is true. Docs name the path param library_file_key, spec names it file_key (spec used). Rows are a oneOf keyed by group_by; inaccessible teams/files appear as 'Team not visible' / 'File not visible'. Snapshot, not a time series: no date filters."
+          },
+          "list_library_style_actions": {
+            "doc_file": "library_analytics/list_library_style_actions.md",
+            "endpoint": "GET /v1/analytics/libraries/{file_key}/style/actions",
+            "description": "Returns library analytics style actions data broken down by the requested dimension.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File key of the library to fetch analytics data for."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Cursor indicating what page of data to fetch. Obtained from prior API call."
+              },
+              {
+                "name": "group_by",
+                "type": "Literal['style', 'team']",
+                "required": true,
+                "description": "A dimension to group returned analytics data by. One of: style, team."
+              },
+              {
+                "name": "start_date",
+                "type": "str",
+                "required": false,
+                "description": "ISO 8601 date string (YYYY-MM-DD) of the earliest week to include. Dates are rounded back to the nearest start of a week. Defaults to one year prior."
+              },
+              {
+                "name": "end_date",
+                "type": "str",
+                "required": false,
+                "description": "ISO 8601 date string (YYYY-MM-DD) of the latest week to include. Dates are rounded forward to the nearest end of a week. Defaults to the latest computed week."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "rows",
+                "type": "list[dict] (shape depends on group_by): group_by=style -> {week: str, style_key: str, style_name: str, style_type: str, detachments: number, insertions: number}; group_by=team -> {week: str, team_name: str, workspace_name?: str, detachments: number, insertions: number}"
+              },
+              {
+                "name": "next_page",
+                "type": "bool"
+              },
+              {
+                "name": "cursor",
+                "type": "str | None (absent when next_page is false)"
+              }
+            ],
+            "schema": {
+              "data": "LibraryStyleActionListData",
+              "result": "LibraryStyleActionListResult"
+            },
+            "notes": "Enterprise plan only; requires library_analytics:read scope (Tier 3 rate limit). Pass Figma's 403 `message` through (Limited by Figma plan / Incorrect account type / Invalid scope) with the explanation from auth.md -> Error handling for access limits; live check 2026-11-25 confirmed 403 'Invalid scope: [...]. This endpoint requires the library_analytics:read scope.' for a PAT without it. Cursor paging: max 1,000 rows/page; pass returned `cursor` back while next_page is true. Docs name the path param library_file_key, spec names it file_key (spec used). Rows are a oneOf keyed by group_by; inaccessible teams/files appear as 'Team not visible' / 'File not visible'. Time series, descending (most recent first); only weeks with data returned; up to one year of data."
+          },
+          "list_library_style_usages": {
+            "doc_file": "library_analytics/list_library_style_usages.md",
+            "endpoint": "GET /v1/analytics/libraries/{file_key}/style/usages",
+            "description": "Returns library analytics style usage data broken down by the requested dimension.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File key of the library to fetch analytics data for."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Cursor indicating what page of data to fetch. Obtained from prior API call."
+              },
+              {
+                "name": "group_by",
+                "type": "Literal['style', 'file']",
+                "required": true,
+                "description": "A dimension to group returned analytics data by. One of: style, file."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "rows",
+                "type": "list[dict] (shape depends on group_by): group_by=style -> {style_key: str, style_name: str, style_type: str, usages: number, teams_using: number, files_using: number}; group_by=file -> {file_name: str, team_name: str, workspace_name?: str, usages: number}"
+              },
+              {
+                "name": "next_page",
+                "type": "bool"
+              },
+              {
+                "name": "cursor",
+                "type": "str | None (absent when next_page is false)"
+              }
+            ],
+            "schema": {
+              "data": "LibraryStyleUsageListData",
+              "result": "LibraryStyleUsageListResult"
+            },
+            "notes": "Enterprise plan only; requires library_analytics:read scope (Tier 3 rate limit). Pass Figma's 403 `message` through (Limited by Figma plan / Incorrect account type / Invalid scope) with the explanation from auth.md -> Error handling for access limits; live check 2026-11-25 confirmed 403 'Invalid scope: [...]. This endpoint requires the library_analytics:read scope.' for a PAT without it. Cursor paging: max 1,000 rows/page; pass returned `cursor` back while next_page is true. Docs name the path param library_file_key, spec names it file_key (spec used). Rows are a oneOf keyed by group_by; inaccessible teams/files appear as 'Team not visible' / 'File not visible'. Snapshot, not a time series: no date filters."
+          },
+          "list_library_variable_actions": {
+            "doc_file": "library_analytics/list_library_variable_actions.md",
+            "endpoint": "GET /v1/analytics/libraries/{file_key}/variable/actions",
+            "description": "Returns library analytics variable actions data broken down by the requested dimension.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File key of the library to fetch analytics data for."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Cursor indicating what page of data to fetch. Obtained from prior API call."
+              },
+              {
+                "name": "group_by",
+                "type": "Literal['variable', 'team']",
+                "required": true,
+                "description": "A dimension to group returned analytics data by. One of: variable, team."
+              },
+              {
+                "name": "start_date",
+                "type": "str",
+                "required": false,
+                "description": "ISO 8601 date string (YYYY-MM-DD) of the earliest week to include. Dates are rounded back to the nearest start of a week. Defaults to one year prior."
+              },
+              {
+                "name": "end_date",
+                "type": "str",
+                "required": false,
+                "description": "ISO 8601 date string (YYYY-MM-DD) of the latest week to include. Dates are rounded forward to the nearest end of a week. Defaults to the latest computed week."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "rows",
+                "type": "list[dict] (shape depends on group_by): group_by=variable -> {week: str, variable_key: str, variable_name: str, variable_type: str, collection_key: str, collection_name: str, detachments: number, insertions: number}; group_by=team -> {week: str, team_name: str, workspace_name?: str, detachments: number, insertions: number}"
+              },
+              {
+                "name": "next_page",
+                "type": "bool"
+              },
+              {
+                "name": "cursor",
+                "type": "str | None (absent when next_page is false)"
+              }
+            ],
+            "schema": {
+              "data": "LibraryVariableActionListData",
+              "result": "LibraryVariableActionListResult"
+            },
+            "notes": "Enterprise plan only; requires library_analytics:read scope (Tier 3 rate limit). Pass Figma's 403 `message` through (Limited by Figma plan / Incorrect account type / Invalid scope) with the explanation from auth.md -> Error handling for access limits; live check 2026-11-25 confirmed 403 'Invalid scope: [...]. This endpoint requires the library_analytics:read scope.' for a PAT without it. Cursor paging: max 1,000 rows/page; pass returned `cursor` back while next_page is true. Docs name the path param library_file_key, spec names it file_key (spec used). Rows are a oneOf keyed by group_by; inaccessible teams/files appear as 'Team not visible' / 'File not visible'. Time series, descending (most recent first); only weeks with data returned; up to one year of data."
+          },
+          "list_library_variable_usages": {
+            "doc_file": "library_analytics/list_library_variable_usages.md",
+            "endpoint": "GET /v1/analytics/libraries/{file_key}/variable/usages",
+            "description": "Returns library analytics variable usage data broken down by the requested dimension.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File key of the library to fetch analytics data for."
+              },
+              {
+                "name": "cursor",
+                "type": "str",
+                "required": false,
+                "description": "Cursor indicating what page of data to fetch. Obtained from prior API call."
+              },
+              {
+                "name": "group_by",
+                "type": "Literal['variable', 'file']",
+                "required": true,
+                "description": "A dimension to group returned analytics data by. One of: variable, file."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "rows",
+                "type": "list[dict] (shape depends on group_by): group_by=variable -> {variable_key: str, variable_name: str, variable_type: str, collection_key: str, collection_name: str, usages: number, teams_using: number, files_using: number}; group_by=file -> {file_name: str, team_name: str, workspace_name?: str, usages: number}"
+              },
+              {
+                "name": "next_page",
+                "type": "bool"
+              },
+              {
+                "name": "cursor",
+                "type": "str | None (absent when next_page is false)"
+              }
+            ],
+            "schema": {
+              "data": "LibraryVariableUsageListData",
+              "result": "LibraryVariableUsageListResult"
+            },
+            "notes": "Enterprise plan only; requires library_analytics:read scope (Tier 3 rate limit). Pass Figma's 403 `message` through (Limited by Figma plan / Incorrect account type / Invalid scope) with the explanation from auth.md -> Error handling for access limits; live check 2026-11-25 confirmed 403 'Invalid scope: [...]. This endpoint requires the library_analytics:read scope.' for a PAT without it. Cursor paging: max 1,000 rows/page; pass returned `cursor` back while next_page is true. Docs name the path param library_file_key, spec names it file_key (spec used). Rows are a oneOf keyed by group_by; inaccessible teams/files appear as 'Team not visible' / 'File not visible'. Snapshot, not a time series: no date filters."
+          }
+        }
+      },
+      "teams": {
+        "file": "teams_tools.py",
+        "doc_source": "teams/",
+        "register_fn": "register_teams_tools",
+        "tools": {
+          "get_team": {
+            "doc_file": "teams/get_team.md",
+            "endpoint": "GET /v1/teams/{team_id}",
+            "description": "Returns metadata for a team the caller can access.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "The ID of the team. (path)"
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "id",
+                "type": "str"
+              },
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "description",
+                "type": "str | None"
+              },
+              {
+                "name": "sharing_audience_control",
+                "type": "Literal['org_view','org_edit','invite_only','workspace_view','workspace_edit']"
+              },
+              {
+                "name": "org_discoverability",
+                "type": "Literal['hidden','discoverable'] | None"
+              },
+              {
+                "name": "workspace_id",
+                "type": "str | None"
+              },
+              {
+                "name": "owner_user_id",
+                "type": "str | None"
+              },
+              {
+                "name": "created_at",
+                "type": "str (date-time)"
+              }
+            ],
+            "schema": {
+              "data": "GetTeamData",
+              "result": "GetTeamResult"
+            },
+            "notes": "Tier 2 rate limit; OAuth scope teams:read. Private OAuth apps only (Professional/Organization/Enterprise; plan access tokens Organization/Enterprise) \u2014 public-app connections get a generic 401/403; return Figma's err plus the app/plan explanation and fail fast for known public-app connections (see auth.md -> Error handling for access limits). Team IDs can't be obtained programmatically: user copies from team page URL or uses create_team's id. org_discoverability is null unless sharing_audience_control is invite_only. Live check (PAT, 2026-11-25): missing teams:read returns 403 naming the required scope; public-OAuth-app behaviour still to confirm. Errors: 401, 403, 429, 500."
+          },
+          "create_team": {
+            "doc_file": "teams/create_team.md",
+            "endpoint": "POST /v1/teams",
+            "description": "Creates a team in the Enterprise plan associated with a private OAuth app, making the authenticated user the team owner; Enterprise private OAuth apps only.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "name",
+                "type": "str",
+                "required": true,
+                "description": "The name of the team. (body)"
+              },
+              {
+                "name": "description",
+                "type": "str | None",
+                "required": false,
+                "description": "A description of the team. (body)"
+              },
+              {
+                "name": "sharing_audience_control",
+                "type": "Literal['org_view','org_edit','invite_only','workspace_view','workspace_edit']",
+                "required": true,
+                "description": "The audience that can discover and join the team. Workspace audiences require a workspace_id. (body)"
+              },
+              {
+                "name": "org_discoverability",
+                "type": "Literal['hidden','discoverable'] | None",
+                "required": false,
+                "description": "Whether organization members can discover an invite-only team. Required for invite_only and not accepted for other audiences. (body)"
+              },
+              {
+                "name": "workspace_id",
+                "type": "str | None",
+                "required": false,
+                "description": "The workspace in which to create the team. Required for workspace audiences. (body)"
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "id",
+                "type": "str"
+              },
+              {
+                "name": "name",
+                "type": "str"
+              },
+              {
+                "name": "description",
+                "type": "str | None"
+              },
+              {
+                "name": "sharing_audience_control",
+                "type": "Literal['org_view','org_edit','invite_only','workspace_view','workspace_edit']"
+              },
+              {
+                "name": "org_discoverability",
+                "type": "Literal['hidden','discoverable'] | None"
+              },
+              {
+                "name": "workspace_id",
+                "type": "str | None"
+              },
+              {
+                "name": "owner_user_id",
+                "type": "str | None"
+              },
+              {
+                "name": "created_at",
+                "type": "str (date-time)"
+              }
+            ],
+            "schema": {
+              "data": "CreateTeamData",
+              "result": "CreateTeamResult"
+            },
+            "notes": "Tier 2 rate limit; scope teams:write. Enterprise private OAuth apps only \u2014 public-app connections get a generic 403 (or 404 'endpoint is not enabled'); return Figma's err/message plus the app/plan explanation and fail fast for known public-app connections (see auth.md). Conditional body rules: org_discoverability required when sharing_audience_control is invite_only and omitted otherwise; workspace_id required for workspace_view/workspace_edit. additionalProperties: false \u2014 send no other keys (omit unset optionals). Returns the created Team, same shape as get_team. Errors: 400, 401, 403, 429, 500."
+          },
+          "invite_team_members": {
+            "doc_file": "teams/invite_team_members.md",
+            "endpoint": "POST /v1/teams/{team_id}/invites",
+            "description": "Invites users by email to a team with the requested role, processing each email independently; Enterprise private OAuth apps only.",
+            "tier": "CREATE",
+            "params": [
+              {
+                "name": "team_id",
+                "type": "str",
+                "required": true,
+                "description": "The ID of the team to invite users to. (path)"
+              },
+              {
+                "name": "emails",
+                "type": "list[str]",
+                "required": true,
+                "description": "The email addresses to invite (1-99 items, email format). (body)"
+              },
+              {
+                "name": "role",
+                "type": "Literal['viewer','editor','admin']",
+                "required": true,
+                "description": "The role to grant each invited member. Existing roles are never downgraded. (body)"
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "invites",
+                "type": "list[dict{email: str, role: Literal['viewer','editor','admin']}]"
+              },
+              {
+                "name": "errors",
+                "type": "list[dict{email: str, error: str}]"
+              }
+            ],
+            "schema": {
+              "data": "InviteTeamMembersData",
+              "result": "InviteTeamMembersResult"
+            },
+            "notes": "Tier 2 rate limit; scope team_members:write. Enterprise private OAuth apps only \u2014 public-app connections get a generic 403 (or 404 'endpoint is not enabled'); return Figma's err/message plus the app/plan explanation and fail fast for known public-app connections (see auth.md). Partial failure: per-address failures come back in errors with HTTP 200 even if invites is empty \u2014 the tool must surface errors, not report plain success. Invites may still need org-admin approval. additionalProperties: false. Errors: 400, 401, 403, 404, 413, 429, 500."
+          }
+        }
+      },
+      "users": {
+        "file": "users_tools.py",
+        "doc_source": "users/",
+        "register_fn": "register_users_tools",
+        "tools": {
+          "get_current_user": {
+            "doc_file": "users/get_current_user.md",
+            "endpoint": "GET /v1/me",
+            "description": "Returns the currently authenticated user's information, including id, handle, img_url, and email.",
+            "tier": "GET",
+            "params": [],
+            "response_fields": [
+              {
+                "name": "id",
+                "type": "str"
+              },
+              {
+                "name": "handle",
+                "type": "str"
+              },
+              {
+                "name": "img_url",
+                "type": "str"
+              },
+              {
+                "name": "email",
+                "type": "str"
+              }
+            ],
+            "schema": {
+              "data": "CurrentUserData",
+              "result": "CurrentUserResult"
+            },
+            "notes": "Tier 3 rate limit; requires the current_user:read scope. email is only present on /v1/me (user objects embedded in comments/versions/components carry only id, handle, img_url). id matches user.id on comments and reactions. Docs page lists no errors; spec lists 403, 429, 500 (see auth.md#errors)."
+          }
+        }
+      },
+      "variables": {
+        "file": "variables_tools.py",
+        "doc_source": "variables/",
+        "register_fn": "register_variables_tools",
+        "tools": {
+          "get_local_variables": {
+            "doc_file": "variables/get_local_variables.md",
+            "endpoint": "GET /v1/files/{file_key}/variables/local",
+            "description": "Enumerates the local variables created in a file and the remote variables used in it, returning maps of variables and variable collections (with modes and per-mode values); available to full members of Enterprise orgs.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to get variables from. File key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "float (enum: 200)"
+              },
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              },
+              {
+                "name": "meta",
+                "type": "dict: {variables: map of variable id -> {id, name, key, variableCollectionId, resolvedType (BOOLEAN|FLOAT|STRING|COLOR), valuesByMode (map modeId -> bool|number|string|RGBA {r,g,b,a}|VariableAlias {type: VARIABLE_ALIAS, id}|VariableComposedColor {color, opacity}), remote, description, hiddenFromPublishing, scopes (list[str]), codeSyntax {WEB?, ANDROID?, iOS?}, deletedButReferenced?}, variableCollections: map of collection id -> {id, name, key, modes (list[{modeId, name, parentModeId?}]), defaultModeId, remote, isExtension?, parentVariableCollectionId?, rootVariableCollectionId?, variableOverrides? (map variableId -> map modeId -> value|null), hiddenFromPublishing, variableIds (list[str])}}"
+              }
+            ],
+            "schema": {
+              "data": "LocalVariablesData",
+              "result": "LocalVariablesResult"
+            },
+            "notes": "Tier 2 rate limit; scope `file_variables:read`; view access to the file. Enterprise plan only; Full seat in an Enterprise org, guests cannot use the API. On 403, pass Figma's `message` through (`Limited by Figma plan`, `Incorrect account type`, `Invalid scope`, `Insufficient file permissions`, `API only available for design files`) with the explanation from auth.md -> Error handling for access limits. Docs vs spec: spec used (modes is an array of {modeId, name, parentModeId?}; deletedButReferenced on the variable; docs-only inheritedVariableIds/localVariableIds omitted). Extended-collection fields (parentVariableCollectionId, rootVariableCollectionId, variableOverrides) appear only when isExtension is true. Live check 2026-11-25: unscoped PAT got 403 'Invalid scope(s): ... requires the file_variables:read scope'."
+          },
+          "get_published_variables": {
+            "doc_file": "variables/get_published_variables.md",
+            "endpoint": "GET /v1/files/{file_key}/variables/published",
+            "description": "Returns the variables and variable collections published from the given file, each with its subscribed_id and last-published timestamp (modes are omitted); available to full members of Enterprise orgs.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to get variables from. This must be a main file key, not a branch key, as it is not possible to publish from branches."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "float (enum: 200)"
+              },
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              },
+              {
+                "name": "meta",
+                "type": "dict: {variables: map of variable id -> {id, subscribed_id, name, key, variableCollectionId, resolvedDataType (BOOLEAN|FLOAT|STRING|COLOR), updatedAt (ISO 8601)}, variableCollections: map of collection id -> {id, subscribed_id, name, key, updatedAt (ISO 8601)}}"
+              }
+            ],
+            "schema": {
+              "data": "PublishedVariablesData",
+              "result": "PublishedVariablesResult"
+            },
+            "notes": "Tier 2 rate limit; scope `file_variables:read` (live 403 said `file_read or file_variables:read`); view access to the file. Enterprise plan only; Full seat in an Enterprise org, guests cannot use the API. On 403, pass Figma's `message` through (`Limited by Figma plan`, `Incorrect account type`, `Invalid scope`, `Insufficient file permissions`, `API only available for design files`) with the explanation from auth.md -> Error handling for access limits. Docs vs spec: docs name the type field `resolvedType`, spec `resolvedDataType` - spec used, unverified live (Enterprise only). Modes are not returned; use get_local_variables in the same file for mode values."
+          },
+          "update_variables": {
+            "doc_file": "variables/update_variables.md",
+            "endpoint": "POST /v1/files/{file_key}/variables",
+            "description": "Bulk creates, updates, and deletes variable collections, modes, variables, and per-mode variable values in a file as one atomic request, returning a map of temporary ids to the real ids of created objects; available to full members of Enterprise orgs with edit access.",
+            "tier": "UPDATE_MANY",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to modify variables in. File key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "variableCollections",
+                "type": "list[dict]",
+                "required": false,
+                "description": "For creating, updating, and deleting variable collections. Each item is one of: CREATE {action: \"CREATE\", name (required), id? (temporary id), initialModeId? (temporary id for the default mode), hiddenFromPublishing? (default false), parentVariableCollectionId? (collection to extend), initialModeIdToParentModeIdMapping? (dict; maps inherited parent modes to initial mode ids on the extended collection, used instead of initialModeId)}; UPDATE {action: \"UPDATE\", id (required), name?, hiddenFromPublishing?}; DELETE {action: \"DELETE\", id (required)}."
+              },
+              {
+                "name": "variableModes",
+                "type": "list[dict]",
+                "required": false,
+                "description": "For creating, updating, and deleting modes within variable collections. Each item is one of: CREATE {action: \"CREATE\", name (required), variableCollectionId (required; may be a temporary id; not on extended collections), id? (temporary id)}; UPDATE {action: \"UPDATE\", id (required), variableCollectionId (required; not on extended collections), name?}; DELETE {action: \"DELETE\", id (required); not on extended collections unless the parent mode was deleted}."
+              },
+              {
+                "name": "variables",
+                "type": "list[dict]",
+                "required": false,
+                "description": "For creating, updating, and deleting variables. Each item is one of: CREATE {action: \"CREATE\", name (required), variableCollectionId (required; may be a temporary id), resolvedType (required; BOOLEAN|FLOAT|STRING|COLOR), id? (temporary id), description?, hiddenFromPublishing? (default false), scopes? (list[str]), codeSyntax? ({WEB?, ANDROID?, iOS?})}; UPDATE {action: \"UPDATE\", id (required), name?, description?, hiddenFromPublishing?, scopes?, codeSyntax?}; DELETE {action: \"DELETE\", id (required)}."
+              },
+              {
+                "name": "variableModeValues",
+                "type": "list[dict]",
+                "required": false,
+                "description": "For setting a specific value, given a variable and a mode. Each item: {variableId (may be a temporary id), modeId (must be a mode in the variable's collection; an extended mode ID like `VariableCollectionId:2:5/1:0` creates/updates an override), value (bool | number | string | RGBA {r,g,b,a} (0-1) | VariableAlias {type: \"VARIABLE_ALIAS\", id} | VariableComposedColor {color, opacity} | null (null removes an override; extended mode IDs only))}; all three properties required."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "status",
+                "type": "float (enum: 200)"
+              },
+              {
+                "name": "error",
+                "type": "bool (always false on success)"
+              },
+              {
+                "name": "meta",
+                "type": "dict: {tempIdToRealId: map of temporary ids in the request to the real ids of newly created objects (dict[str, str])}"
+              }
+            ],
+            "schema": {
+              "data": "UpdateVariablesData",
+              "result": "UpdateVariablesResult"
+            },
+            "notes": "Body must include at least one of the four arrays (minProperties: 1); applied in order variableCollections, variableModes, variables, variableModeValues, each by array order. Atomic: any validation failure returns 400 and nothing persists. Tier 3 rate limit; scope `file_variables:write`; Full seat/admin with edit access. Enterprise plan only; Full seat in an Enterprise org, guests cannot use the API. On 403, pass Figma's `message` through (`Limited by Figma plan`, `Incorrect account type`, `Invalid scope`, `Insufficient file permissions`, `API only available for design files`) with the explanation from auth.md -> Error handling for access limits. Limits: 40 modes/collection, mode names <=40 chars, 5000 variables/collection, unique variable names without `.{}`, body <=4MB (413). Cannot update remote variables/collections; resolvedType is ignored on UPDATE. Docs vs spec: spec used (variableCollectionId not required on mode DELETE). Variables must be published before use in other files."
+          }
+        }
+      },
+      "versions": {
+        "file": "versions_tools.py",
+        "doc_source": "versions/",
+        "register_fn": "register_versions_tools",
+        "tools": {
+          "list_file_versions": {
+            "doc_file": "versions/list_file_versions.md",
+            "endpoint": "GET /v1/files/{file_key}/versions",
+            "description": "Fetches the version history of a file, returning its versions over time; version IDs can be used to fetch or render that specific version via other endpoints.",
+            "tier": "GET",
+            "params": [
+              {
+                "name": "file_key",
+                "type": "str",
+                "required": true,
+                "description": "File to get version history from. This can be a file key or branch key. Use `GET /v1/files/:key` with the `branch_data` query param to get the branch key."
+              },
+              {
+                "name": "page_size",
+                "type": "int",
+                "required": false,
+                "description": "The number of items returned in a page of the response. If not included, `page_size` is `30`. Maximum 50."
+              },
+              {
+                "name": "before",
+                "type": "int",
+                "required": false,
+                "description": "A version ID for one of the versions in the history. Gets versions before this ID. Used for paginating. If the response is not paginated, this link returns the same data in the current response."
+              },
+              {
+                "name": "after",
+                "type": "int",
+                "required": false,
+                "description": "A version ID for one of the versions in the history. Gets versions after this ID. Used for paginating. If the response is not paginated, this property is not included."
+              }
+            ],
+            "response_fields": [
+              {
+                "name": "versions",
+                "type": "list[dict] \u2014 each {id: str, created_at: str (date-time), label: str | None, description: str | None, user: {id: str, handle: str, img_url: str}, thumbnail_url: str (optional)}"
+              },
+              {
+                "name": "pagination",
+                "type": "dict \u2014 {prev_page: str (optional), next_page: str (optional)}"
+              }
+            ],
+            "schema": {
+              "data": "FileVersionListData",
+              "result": "FileVersionListResult"
+            },
+            "notes": "Tier 2 rate limit; needs `file_versions:read` scope. Built to spec (OpenAPI v0.47.0): docs page lists only the path param and the types page lacks `thumbnail_url`. `label`/`description` can be null. Versions are ordered by creation time. Pagination: return `pagination.next_page`/`prev_page` URLs as given; either may be absent. Spec types `before`/`after` as number but they are version IDs (`versions[].id` is a string); live paging URLs actually carried `after`/`before` = timestamp plus `secondary_after`/`secondary_before` = id, `column=date`, `secondary_column=default` \u2014 if version-ID paging misbehaves, passing the paging URL's query string back is the likely fix. Live check 2026-11-25 (PAT): empty `versions` still came with paging URLs \u2014 do not loop on it; stop after an empty page. Version item fields not live-verified. Errors: 403 invalid/expired token; 404 file not found. `versions[].id` feeds the `version` param of get_file, get_file_nodes, render_images."
+          }
+        }
+      }
+    }
+  },
+  "resources": {},
+  "prompts": {}
+}
