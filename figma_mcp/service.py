@@ -1,124 +1,62 @@
-import logging
-from typing import Any, Optional
+"""Upstream API client for MewCP Figma MCP Server."""
 
-import httpx
+import logging
+from typing import Any
+
+import requests
 from fastmcp_credentials import get_credentials
 
-from .config import FIGMA_API_BASE
+from .config import FIGMA_API_BASE, CONNECT_TIMEOUT, READ_TIMEOUT
 
-logger = logging.getLogger("figma-mcp-server")
+logger = logging.getLogger("figma-mcp.service")
+
+# Set on 429 bodies when Figma sends X-Figma-Upgrade-Link; read by tools/_helpers.py.
+UPGRADE_LINK_KEY = "_figma_upgrade_link"
 
 
-def _headers() -> dict[str, str]:
-    """Build Figma API request headers from the injected credential."""
+def _get_credential() -> str:
     cred = get_credentials()
     if not cred.access_token:
         raise ValueError("No OAuth access token available in credentials")
-    return {"X-Figma-Token": cred.access_token}
+    return cred.access_token
 
 
-def _get(path: str, params: Optional[dict] = None) -> dict[str, Any]:
-    url = f"{FIGMA_API_BASE}{path}"
-    with httpx.Client(timeout=30) as client:
-        response = client.get(url, headers=_headers(), params=params)
-        response.raise_for_status()
-        return response.json()
+def _auth_headers() -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {_get_credential()}",
+        "Content-Type": "application/json",
+    }
 
 
-def _post(path: str, body: dict) -> dict[str, Any]:
-    url = f"{FIGMA_API_BASE}{path}"
-    with httpx.Client(timeout=30) as client:
-        response = client.post(url, headers=_headers(), json=body)
-        response.raise_for_status()
-        return response.json()
+def _parse_retry_after(header: str | None) -> int | None:
+    if not header:
+        return None
+    try:
+        return int(header)
+    except ValueError:
+        return None
 
 
-# --- User ---
-
-def get_me() -> dict[str, Any]:
-    return _get("/me")
-
-
-# --- Files ---
-
-def get_file(file_key: str, depth: Optional[int] = None) -> dict[str, Any]:
-    params = {}
-    if depth is not None:
-        params["depth"] = depth
-    return _get(f"/files/{file_key}", params or None)
-
-
-def get_file_nodes(
-    file_key: str, node_ids: str, depth: Optional[int] = None
-) -> dict[str, Any]:
-    params: dict[str, Any] = {"ids": node_ids}
-    if depth is not None:
-        params["depth"] = depth
-    return _get(f"/files/{file_key}/nodes", params)
-
-
-def get_file_components(file_key: str) -> dict[str, Any]:
-    return _get(f"/files/{file_key}/components")
-
-
-def get_file_styles(file_key: str) -> dict[str, Any]:
-    return _get(f"/files/{file_key}/styles")
-
-
-def get_file_versions(file_key: str) -> dict[str, Any]:
-    return _get(f"/files/{file_key}/versions")
-
-
-# --- Images ---
-
-def get_images(
-    file_key: str,
-    node_ids: str,
-    scale: Optional[float] = None,
-    format: Optional[str] = None,
-) -> dict[str, Any]:
-    params: dict[str, Any] = {"ids": node_ids}
-    if scale is not None:
-        params["scale"] = scale
-    if format is not None:
-        params["format"] = format
-    return _get(f"/images/{file_key}", params)
-
-
-def get_image_fills(file_key: str) -> dict[str, Any]:
-    return _get(f"/files/{file_key}/images")
-
-
-# --- Comments ---
-
-def get_comments(file_key: str) -> dict[str, Any]:
-    return _get(f"/files/{file_key}/comments")
-
-
-def post_comment(
-    file_key: str, message: str, client_meta: Optional[dict] = None
-) -> dict[str, Any]:
-    body: dict[str, Any] = {"message": message}
-    if client_meta:
-        body["client_meta"] = client_meta
-    return _post(f"/files/{file_key}/comments", body)
-
-
-# --- Teams & Projects ---
-
-def get_team_projects(team_id: str) -> dict[str, Any]:
-    return _get(f"/teams/{team_id}/projects")
-
-
-def get_project_files(project_id: str) -> dict[str, Any]:
-    return _get(f"/projects/{project_id}/files")
-
-
-# --- Components ---
-
-def get_team_components(team_id: str) -> dict[str, Any]:
-    return _get(f"/teams/{team_id}/components")
-
-
-def get_component(component_key: str) -> dict[str, Any]:
-    return _get(f"/components/{component_key}")
+def api_request(
+    method: str,
+    endpoint: str,
+    body: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+    timeout: tuple[int, int] | None = None,
+) -> tuple[dict[str, Any], int, int | None]:
+    if timeout is None:
+        timeout = (CONNECT_TIMEOUT, READ_TIMEOUT)
+    url = f"{FIGMA_API_BASE}{endpoint}"
+    resp = requests.request(method=method, url=url, headers=_auth_headers(),
+                            json=body, params=params, timeout=timeout)
+    try:
+        data = resp.json()
+    except Exception:
+        data = None
+    if not isinstance(data, dict):
+        data = {"error": resp.text or "Empty response body"}
+    if resp.status_code == 429:
+        link = resp.headers.get("X-Figma-Upgrade-Link")
+        if link:
+            data[UPGRADE_LINK_KEY] = link
+    return data, resp.status_code, _parse_retry_after(resp.headers.get("Retry-After"))
